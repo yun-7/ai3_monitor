@@ -115,7 +115,9 @@ def create_dashboard():
     
     # 讀取數據
     df = load_data()
-
+    if df is None:
+        st.error("請上傳有效的 CSV 或 Excel 檔案")
+        return
         
     st.subheader("系統監控儀表板")
 
