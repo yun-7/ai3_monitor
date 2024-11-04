@@ -200,47 +200,17 @@ def create_dashboard():
     )
     
     # 異常分布圓餅圖
-    chart_col3, chart_col4 = st.columns(2)
-    
-    with chart_col3:
-        st.subheader("異常等級分布")
-        severity_dist = filtered_df_host['異常等級'].value_counts()
-        fig_severity = px.pie(
-            values=severity_dist.values, 
-            names=severity_dist.index,
-            template='plotly_white'
-        )
-        fig_severity.update_layout(height=400)
-        st.plotly_chart(fig_severity, use_container_width=True)
-    
-    with chart_col4:
-        st.subheader("主機告警時間分布")
-        fig_time_dist = px.histogram(
-            filtered_df_host, 
-            x=filtered_df_host['發生日期'].dt.hour,
-            nbins=24,
-            title="每小時告警分布",
-            labels={'value': '小時', 'count': '告警次數'},
-            template='plotly_white'
-        )
-        fig_time_dist.update_layout(height=400)
-        st.plotly_chart(fig_time_dist, use_container_width=True)
-    
-    # 異常訊息分析
-    st.subheader("異常訊息類型統計")
-    message_counts = filtered_df_host['異常訊息'].value_counts().reset_index()
-    message_counts.columns = ['異常訊息', '次數']
-    
-    fig_messages = go.Figure(data=[
-        go.Bar(x=message_counts['異常訊息'], y=message_counts['次數'])
-    ])
-    fig_messages.update_layout(
-        xaxis_tickangle=-45,
-        height=400,
+    st.subheader("異常等級分布")
+    severity_dist = filtered_df_host['異常等級'].value_counts()
+    fig_severity = px.pie(
+        values=severity_dist.values, 
+        names=severity_dist.index,
         template='plotly_white'
     )
-    st.plotly_chart(fig_messages, use_container_width=True)
-
+    fig_severity.update_layout(height=400)
+    st.plotly_chart(fig_severity, use_container_width=True)
+    
+   
     # 顯示選擇的日期範圍
     st.sidebar.write(f"當前顯示: {start_date} 到 {end_date}")
 
