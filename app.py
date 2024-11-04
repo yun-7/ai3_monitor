@@ -19,18 +19,36 @@ st.title("監控日誌表")
 st.header(':grey[]', divider='rainbow')
 st.markdown('[*雲端維護組*](https://gemfor.sharepoint.com/:x:/r/sites/cloud-support/17/%E5%80%BC%E7%8F%AD%E7%9B%A3%E6%8E%A7%E6%97%A5%E8%AA%8C/%E4%BE%8B%E8%A1%8C%E5%B7%A5%E4%BD%9C%20%E6%97%A5/202410%E7%9B%A3%E6%8E%A7%E6%97%A5%E8%AA%8C/EXCEL/10%E6%9C%88%E7%9B%A3%E6%8E%A7%E6%97%A5%E8%AA%8C.xlsx?d=w7fc1a66db73f496eb9b0e95877d23dd6&csf=1&web=1&e=myxWU2)')
 
+
+
 def load_data():
-    # 假設數據已經從Excel讀取並轉換為DataFrame
-    df = pd.read_excel("11月監控日誌.xlsx")
-    df = df[df["主管或處理人回應"].notna()]
+    # 檔案上傳功能
+    uploaded_file = st.file_uploader("選擇一個 CSV 或 Excel 檔案", type=['csv', 'xlsx', 'xls'])
     
-    # 轉換日期時間列
-    df['發生日期'] = pd.to_datetime(df['發生日期'])
-    df['日期'] = df['發生日期'].dt.date
-    df['週'] = df['發生日期'].dt.isocalendar().week
-    df['月份'] = df['發生日期'].dt.month
-    
-    return df
+    if uploaded_file is not None:
+        try:
+            # 根據檔案類型讀取資料
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+                df = df[df["主管或處理人回應"].notna()]
+            else:
+                df = pd.read_excel(uploaded_file)
+                df = df[df["主管或處理人回應"].notna()]
+            
+            # 轉換日期時間列
+            df['發生日期'] = pd.to_datetime(df['發生日期'])
+            df['日期'] = df['發生日期'].dt.date
+            df['時間'] = df['發生日期'].dt.time
+            df['週'] = df['發生日期'].dt.isocalendar().week
+            df['月份'] = df['發生日期'].dt.month
+            
+            return df
+            
+        except Exception as e:
+            st.error(f'讀取檔案時發生錯誤: {str(e)}')
+            return None
+    return None
+
 def calculate_stats(df):
     stats = {
         'CPU': {
@@ -60,7 +78,8 @@ def get_unique_error_types(df):
         'Interface': 'Link down',
         'ICMP': 'ICMP',
         'Web': '網頁',
-        'memory < 500M': '<500M'
+        'memory < 500M': '<500M',
+        'CPU >90%': r'High CPU utilization \(over 90% for 5m\)'
     }
     return error_types
 
@@ -93,10 +112,12 @@ def filter_data(df, start_date, end_date):
     return filtered_df
 
 def create_dashboard():
-    st.subheader("系統監控儀表板")
     
     # 讀取數據
     df = load_data()
+
+        
+    st.subheader("系統監控儀表板")
 
     # 取得錯誤類型
     error_types = get_unique_error_types(df)
