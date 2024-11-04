@@ -21,7 +21,7 @@ st.markdown('[*雲端維護組*](https://gemfor.sharepoint.com/:x:/r/sites/cloud
 
 def load_data():
     # 假設數據已經從Excel讀取並轉換為DataFrame
-    df = pd.read_excel("10月監控日誌.xlsx")
+    df = pd.read_excel("11月監控日誌.xlsx")
     df = df[df["主管或處理人回應"].notna()]
     
     # 轉換日期時間列
@@ -31,6 +31,24 @@ def load_data():
     df['月份'] = df['發生日期'].dt.month
     
     return df
+def calculate_stats(df):
+    stats = {
+        'CPU': {
+            'VM CPU\n>90%': len(df[df['異常訊息'].str.contains(r'High CPU utilization \(over 90% for 5m\)', regex=True, na=False)]),
+            'RDS CPU\n>85%': len(df[df['異常訊息'].str.contains(r'AWS RDS: High CPU utilization \(over 85% for 15m\)', regex=True, na=False)]),
+        },
+        '記憶體': {
+            'JVM\n>80%': len(df[df['異常訊息'].str.contains('JVM', regex=True, na=False)]),
+            '主機可用記憶體\n<500mb': len(df[df['異常訊息'].str.contains(r'Lack of available memory \(<500M', regex=True, na=False)]),
+        },
+        '硬碟': {
+            '可用空間\n>80%': len(df[df['異常訊息'].str.contains('磁碟', regex=True, na=False)]),
+        },
+        '網頁': {
+            '網頁無法<br>連線': len(df[df['異常訊息'].str.contains('網頁', na=False)]),
+        }
+    }
+    return stats
 
 def get_unique_error_types(df):
     # 定義主要錯誤類型的關鍵字及其對應的友好名稱
@@ -39,9 +57,10 @@ def get_unique_error_types(df):
         'AWS RDS': 'AWS RDS',
         'swap': 'swap',
         '磁碟空間': '磁碟',
-        'Interface': 'Interface',
+        'Interface': 'Link down',
         'ICMP': 'ICMP',
-        'Web': '請確認服務是否正常'
+        'Web': '網頁',
+        'memory < 500M': '<500M'
     }
     return error_types
 
@@ -74,7 +93,7 @@ def filter_data(df, start_date, end_date):
     return filtered_df
 
 def create_dashboard():
-    st.title("系統監控儀表板")
+    st.subheader("系統監控儀表板")
     
     # 讀取數據
     df = load_data()
@@ -118,6 +137,75 @@ def create_dashboard():
     with col3:
         st.metric("單主機最高告警數", f"{max_host_alerts:,}")
     
+    
+    stats = calculate_stats(filtered_df)
+    
+    # 創建統計表格
+    st.subheader('異常統計表')
+    
+    # 使用 CSS 來設定表格樣式
+    st.markdown("""
+    <style>
+    .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .stats-table th, .stats-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: center;
+    }
+    .stats-table th {
+        background-color: #1e88e5;
+        color: white;
+    }
+    .stats-table tr:nth-child(1) {
+        background-color: #4CAF50;
+        color: white;
+    }
+    .stats-table td {
+        background-color: #f5f5f5;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # 創建表格 HTML
+    table_html = """
+    <table class="stats-table">
+        <tr>
+            <th>處理方式</th>
+            <th colspan="2">CPU</th>
+            <th colspan="2">記憶體</th>
+            <th>硬碟</th>
+            <th>網頁</th>
+        </tr>
+        <tr>
+            <td></td>
+            <td>VM CPU<br>>90%</td>
+            <td>RDS CPU<br>>85%</td>
+            <td>JVM<br>>80%</td>
+            <td>主機可用記憶體<br><500mb</td>
+            <td>可用空間<br>>80%</td>
+            <td>網頁無法<br>連線</td>
+        </tr>
+        <tr>
+            <td>已通知客戶<br>並處理</td>
+    """
+    
+    # 添加數據到表格
+    for category in stats:
+        for subcategory in stats[category]:
+            table_html += f"<td>{stats[category][subcategory]}</td>"
+    
+    table_html += """
+        </tr>
+    </table>
+    """
+    st.markdown(table_html, unsafe_allow_html=True)
+    # 選擇要顯示的欄位
+    st.write(f'*設備障礙或線路異常需查看服務請求以及有報修局端之線路，其他請自行查看該月（週）是否有異常')
+
+    st.subheader('詳細資料')
     col1, col2 = st.columns([2, 1])
     with col1:
         # 創建多選框
@@ -126,8 +214,6 @@ def create_dashboard():
             list(error_types.keys()),
             default=list(error_types.keys())
         )
-
-    # 選擇要顯示的欄位
     display_columns = ['日期', '主機(Host)', '異常訊息', '異常等級', '主管或處理人回應']
 
     if selected_errors:
@@ -136,17 +222,8 @@ def create_dashboard():
             mask |= filtered_df['異常訊息'].str.contains(error_types[error_key], na=False)
         filtered_df = filtered_df[mask]
         
-        # 添加錯誤類型分布圖表
-        st.subheader('異常類型分布')
-        error_counts = {}
-        for error_key, error_pattern in error_types.items():
-            count = filtered_df['異常訊息'].str.contains(error_pattern, na=False).sum()
-            error_counts[error_key] = count
-        
-        st.bar_chart(error_counts)
-        
         # 顯示篩選後的數據，只顯示指定欄位
-        st.subheader('詳細資料')
+        
         st.write(f'共找到 {len(filtered_df)} 筆記錄')
         st.dataframe(filtered_df[display_columns])
 
@@ -180,24 +257,6 @@ def create_dashboard():
             yaxis_title="主機名稱"
         )
         st.plotly_chart(fig_top_hosts, use_container_width=True)
-    
-    # 主機詳細統計
-    st.subheader("主機告警詳細統計")
-    host_details = filtered_df_host.groupby('主機(Host)').agg({
-        '異常訊息': 'count',
-    }).round(2).reset_index()
-    
-    host_details.columns = ['主機名稱', '告警次數']
-    host_details = host_details.sort_values('告警次數', ascending=False)
-    
-    # 顯示所有主機的統計資料，但用不同顏色標示 Top 5
-    st.dataframe(
-        host_details.style.apply(
-            lambda x: ['background-color: #e6f3ff' if i < 5 else '' for i in range(len(x))], 
-            axis=0
-        ),
-        use_container_width=True
-    )
     
     # 異常分布圓餅圖
     st.subheader("異常等級分布")
